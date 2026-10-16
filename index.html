@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07111f">
+  <title>RS485 光照通信实验台</title>
+  <meta name="description" content="STM32 RS485光照通信实验的实时串口可视化看板">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div>
+          <p class="eyebrow">ELECTRONIC SYSTEM DESIGN · LIVE LAB</p>
+          <h1>RS485 光照通信实验台</h1>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="pulse"></span>
+        <span id="system-status">等待设备连接</span>
+        <time id="clock">--:--:--</time>
+      </div>
+    </header>
+
+    <section class="control-strip" aria-label="连接控制">
+      <div class="connection-group">
+        <button id="connect-tx" class="button button-primary" type="button">
+          <span class="button-dot"></span>连接发射端
+        </button>
+        <button id="connect-rx" class="button button-secondary" type="button">
+          <span class="button-dot"></span>连接接收端
+        </button>
+        <button id="demo-toggle" class="button button-ghost" type="button">启动演示</button>
+      </div>
+      <div class="tool-group">
+        <span class="serial-hint">电脑串口 115200 · JSON / 500 ms</span>
+        <button id="export-data" class="icon-button" type="button" title="导出CSV">导出</button>
+        <button id="clear-data" class="icon-button" type="button" title="清空曲线">清空</button>
+      </div>
+    </section>
+
+    <section class="status-grid" aria-label="关键状态">
+      <article class="status-card" data-state="idle" id="tx-card">
+        <div class="card-topline"><span>TX NODE</span><span id="tx-badge" class="badge">未连接</span></div>
+        <div class="node-value"><span id="tx-light">--</span><small>LIGHT</small></div>
+        <div class="mini-row"><span>测量 <b id="measure-state">OFF</b></span><span>通信 <b id="comm-state">OFF</b></span></div>
+      </article>
+
+      <article class="status-card" data-state="idle" id="rx-card">
+        <div class="card-topline"><span>RX NODE</span><span id="rx-badge" class="badge">未连接</span></div>
+        <div class="node-value"><span id="rx-light">--</span><small>LIGHT</small></div>
+        <div class="mini-row"><span>链路 <b id="link-state">OFFLINE</b></span><span>页面 <b id="page-state">--</b></span></div>
+      </article>
+
+      <article class="status-card metric-card">
+        <div class="card-topline"><span>RS485 BAUD</span><span class="metric-icon">↯</span></div>
+        <div class="metric-value" id="baud-value">--</div>
+        <p>两端协商后的通信速率</p>
+      </article>
+
+      <article class="status-card metric-card">
+        <div class="card-topline"><span>TEST STATE</span><span class="metric-icon">◎</span></div>
+        <div class="metric-value test-state" id="test-state">IDLE</div>
+        <p id="test-caption">等待开始测试</p>
+      </article>
+    </section>
+
+    <section class="dashboard-grid">
+      <article class="panel chart-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">REAL-TIME SIGNAL</p>
+            <h2>光照数据趋势</h2>
+          </div>
+          <div class="legend" aria-label="图例">
+            <span><i class="legend-tx"></i>发射端</span>
+            <span><i class="legend-rx"></i>接收端</span>
+            <select id="time-window" aria-label="曲线时间窗口">
+              <option value="60">最近30秒</option>
+              <option value="120" selected>最近60秒</option>
+              <option value="240">最近120秒</option>
+            </select>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="light-chart" aria-label="发射端与接收端光照曲线"></canvas>
+          <div id="chart-empty" class="chart-empty">
+            <strong>暂无遥测数据</strong>
+            <span>连接串口，或启动演示模式查看效果</span>
+          </div>
+        </div>
+        <div class="chart-footer">
+          <span><b id="sample-count">0</b> 个样本</span>
+          <span>采样间隔约 <b>500 ms</b></span>
+          <span id="last-update">最后更新：--</span>
+        </div>
+      </article>
+
+      <aside class="panel quality-panel">
+        <div class="panel-heading compact">
+          <div><p class="eyebrow">LINK QUALITY</p><h2>通信质量</h2></div>
+          <span id="quality-grade" class="quality-grade">--</span>
+        </div>
+        <div class="loss-gauge" id="loss-gauge" style="--loss-angle:0deg">
+          <div><strong id="loss-rate">0.00</strong><span>% 丢包率</span></div>
+        </div>
+        <div class="quality-list">
+          <div><span>发送帧数</span><strong id="tx-count">0</strong></div>
+          <div><span>接收帧数</span><strong id="rx-count">0</strong></div>
+          <div><span>丢失帧数</span><strong id="lost-count">0</strong></div>
+          <div><span>CRC错误</span><strong id="crc-count">0</strong></div>
+          <div><span>最后序号</span><strong id="last-seq">0</strong></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="bottom-grid">
+      <article class="panel experiment-panel">
+        <div class="panel-heading compact">
+          <div><p class="eyebrow">EXPERIMENT SUMMARY</p><h2>实验概览</h2></div>
+        </div>
+        <div class="summary-flow">
+          <div class="flow-node"><span>01</span><b>本地采样</b><small id="flow-sample">等待测量</small></div>
+          <div class="flow-line"><i></i></div>
+          <div class="flow-node"><span>02</span><b>RS485发送</b><small id="flow-send">等待通信</small></div>
+          <div class="flow-line"><i></i></div>
+          <div class="flow-node"><span>03</span><b>远端接收</b><small id="flow-receive">等待链路</small></div>
+          <div class="flow-line"><i></i></div>
+          <div class="flow-node"><span>04</span><b>统计结算</b><small id="flow-summary">尚未完成</small></div>
+        </div>
+      </article>
+
+      <article class="panel log-panel">
+        <div class="panel-heading compact">
+          <div><p class="eyebrow">EVENT STREAM</p><h2>运行记录</h2></div>
+          <span class="recording"><i></i>LIVE</span>
+        </div>
+        <div id="event-log" class="event-log" aria-live="polite">
+          <div class="log-entry"><time>--:--:--</time><span>系统</span><p>等待串口连接</p></div>
+        </div>
+      </article>
+    </section>
+
+    <footer>
+      <span>STM32F103 · RS485 · Web Serial</span>
+      <span id="browser-support">正在检查浏览器串口支持…</span>
+    </footer>
+  </main>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
